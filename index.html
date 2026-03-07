@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.10.0/css/all.css">
+    <title>Hubi Quiz - Đăng nhập</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div id="wrapper">
+        <form id="form-login">
+            <h1 class="form-heading">Hubi Quiz Login</h1>
+            <div class="form-group">
+                <i class="far fa-user"></i>
+                <input type="email" id="email" class="form-input" placeholder="Email đăng nhập" required>
+            </div>
+            <div class="form-group">
+                <i class="fas fa-key"></i>
+                <input type="password" id="password" class="form-input" placeholder="Mật khẩu" required>
+                <div id="eye"><i class="far fa-eye"></i></div>
+            </div>
+            <button type="button" id="btn-login" class="form-submit">Đăng nhập</button>
+            <button type="button" id="btn-signup" class="form-submit btn-signup">Đăng ký tài khoản</button>
+        </form>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+    <script>
+        // Cấu hình dựa trên ảnh dự án của bạn
+        const SUPABASE_URL = 'https://tyhqwaunmanubqqyifwj.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_ykUNI3N6ih0sgmcN4K7OZw_MRYljw-U'; // <--- BẠN DÁN ANON KEY VÀO ĐÂY
+
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        $(document).ready(function(){
+            $('#eye').click(function(){
+                $(this).toggleClass('open');
+                $(this).children('i').toggleClass('fa-eye-slash fa-eye');
+                $(this).prev().attr('type', $(this).hasClass('open') ? 'text' : 'password');
+            });
+
+            $('#btn-login').click(async function(){
+                const email = $('#email').val();
+                const password = $('#password').val();
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) alert("Lỗi: " + error.message);
+                else {
+                    localStorage.setItem('hubi_user', JSON.stringify(data.user));
+                    window.location.href = 'start.html';
+                }
+            });
+
+            $('#btn-signup').click(async function(){
+                const email = $('#email').val();
+                const password = $('#password').val();
+                const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                if (error) alert("Lỗi đăng ký: " + error.message);
+                else alert("Đăng ký thành công! Hãy kiểm tra email hoặc đăng nhập ngay.");
+            });
+        });
+    </script>
+</body>
+</html>
