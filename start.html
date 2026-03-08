@@ -355,41 +355,54 @@ const myData = [
     }
 ];
 // 1. KHỞI TẠO TRẬN ĐẤU
+// 1. KHỞI TẠO TRẬN ĐẤU (Đã sửa lỗi kẹt màn hình cho P2)
 async function initBattle() {
-    if (!user) { alert("Bạn cần đăng nhập trước!"); window.location.href='index.html'; return; }
+    if (!user) { alert("Bạn cần đăng nhập!"); window.location.href='index.html'; return; }
 
     const urlParams = new URLSearchParams(window.location.search);
     const joinRoomId = urlParams.get('room');
 
     if (joinRoomId) {
-        // NGƯỜI CHƠI 2: Tham gia phòng
+        // --- NGƯỜI CHƠI 2 ---
         roomId = joinRoomId;
         isP1 = false;
-        const { error } = await supabaseClient.from('rooms').update({ 
+        
+        // Cập nhật thông tin P2 và chuyển status sang 'playing'
+        const { data, error } = await supabaseClient.from('rooms').update({ 
             p2_id: user.id, 
             p2_name: user.email.split('@')[0], 
             status: 'playing' 
-        }).eq('id', roomId);
+        }).eq('id', roomId).select(); // Thêm .select() để lấy dữ liệu phòng ngay lập tức
         
-        if(error) alert("Phòng không tồn tại hoặc đã đầy!");
+        if(error || !data || data.length === 0) {
+            alert("Phòng không tồn tại hoặc đã đầy!");
+            return;
+        }
+
+        // Kích hoạt lắng nghe để cập nhật điểm đối thủ
+        listenRealtime();
+        
+        // CHỦ ĐỘNG VÀO GAME LUÔN (Không đợi Realtime phản hồi chính mình)
+        showGameUI(data[0]);
+        
     } else {
-        // NGƯỜI CHƠI 1: Tạo phòng
+        // --- NGƯỜI CHƠI 1 ---
         isP1 = true;
         const { data, error } = await supabaseClient.from('rooms').insert([{
             p1_id: user.id,
             p1_name: user.email.split('@')[0],
-            status: 'waiting'
+            status: 'waiting',
+            p1_idx: 0, p2_idx: 0, p1_score: 0, p2_score: 0
         }]).select();
 
         if (data) {
             roomId = data[0].id;
-            const fullLink = window.location.href + '?room=' + roomId;
+            const fullLink = window.location.origin + window.location.pathname + '?room=' + roomId;
             document.getElementById('invite-link').innerText = fullLink;
             document.getElementById('room-link-container').classList.remove('hidden');
-            document.getElementById('lobby-status').innerText = "Đang đợi đối thủ...";
+            listenRealtime();
         }
     }
-    listenRealtime();
 }
 
 // 2. LẮNG NGHE ĐỒNG BỘ (REALTIME)
@@ -447,25 +460,32 @@ function renderQuestion() {
 
 // 4. GỬI ĐÁP ÁN LÊN SQL
 async function submitAnswer(selected, correct) {
+    // 1. Tìm tất cả các nút đáp án và vô hiệu hóa để tránh bấm nhiều lần
+    const buttons = document.querySelectorAll('.opt-btn');
+    buttons.forEach(btn => {
+        btn.style.pointerEvents = 'none'; // Không cho bấm nữa
+        if (btn.innerText === correct) {
+            btn.classList.add('correct-flash'); // Hiện màu xanh cho câu đúng
+        } else if (btn.innerText === selected && selected !== correct) {
+            btn.classList.add('wrong-flash'); // Hiện màu đỏ nếu chọn sai
+        }
+    });
+
+    // 2. Tính điểm
     let scoreGain = (selected === correct) ? 4 : 0;
-    myIdx++; // Tăng câu hỏi của bản thân
+    myIdx++; 
 
-    // Cập nhật điểm vào biến local ngay lập tức để tránh lỗi bất đồng bộ
-    if (isP1) {
-        playersData.p1_score += scoreGain;
-    } else {
-        playersData.p2_score += scoreGain;
-    }
-
-    // Gửi dữ liệu lên Supabase
+    // 3. Gửi dữ liệu lên Supabase
     const updatePayload = isP1 
-        ? { p1_score: playersData.p1_score, p1_idx: myIdx }
-        : { p2_score: playersData.p2_score, p2_idx: myIdx };
+        ? { p1_score: playersData.p1_score + scoreGain, p1_idx: myIdx }
+        : { p2_score: playersData.p2_score + scoreGain, p2_idx: myIdx };
 
     await supabaseClient.from('rooms').update(updatePayload).eq('id', roomId);
-    
-    // Chuyển câu hỏi mới ngay lập tức trên máy mình
-    renderQuestion(); 
+
+    // 4. Đợi 0.8 giây để người chơi kịp nhìn thấy màu sắc rồi mới sang câu tiếp theo
+    setTimeout(() => {
+        renderQuestion();
+    }, 800);
 }
 function showGameUI(room) {
     document.getElementById('screen-lobby').classList.add('hidden');
