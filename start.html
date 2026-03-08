@@ -384,6 +384,32 @@ async function initBattle() {
             if(!data || data.length === 0) throw new Error("Phòng không tồn tại hoặc đã đầy!");
 
             showGameUI(data[0]);
+            let timerInterval;
+function startTimer(durationSeconds) {
+    let timer = durationSeconds;
+    const display = document.getElementById('time-val');
+    
+    timerInterval = setInterval(() => {
+        let minutes = Math.floor(timer / 60);
+        let seconds = timer % 60;
+        display.innerText = `${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+        if (--timer < 0) {
+            clearInterval(timerInterval);
+            showResult(); // Hết giờ thì kết thúc game
+        }
+    }, 1000);
+}
+
+// Cập nhật hàm showGameUI để kích hoạt Timer
+function showGameUI(room) {
+    document.getElementById('screen-lobby').classList.add('hidden');
+    document.getElementById('screen-game').classList.remove('hidden');
+    document.getElementById('name-p1').innerText = room.p1_name;
+    document.getElementById('name-p2').innerText = room.p2_name;
+    renderQuestion();
+    startTimer(300); // 300 giây = 5 phút
+}
         } else {
             // LOGIC CHO NGƯỜI CHƠI 1 (Tạo phòng mới)
             isP1 = true;
@@ -414,33 +440,37 @@ async function initBattle() {
 
 // --- 2. LẮNG NGHE ĐỒNG BỘ ---
 function listenRealtime() {
-    supabaseClient.channel(`room:${roomId}`)
+    const channel = supabaseClient.channel(`room:${roomId}`)
     .on('postgres_changes', { 
-        event: 'UPDATE', 
+        event: '*', // Lắng nghe tất cả các sự kiện (Insert, Update)
         schema: 'public', 
         table: 'rooms', 
         filter: `id=eq.${roomId}` 
     }, 
     payload => {
         const room = payload.new;
-        
-        // Cập nhật điểm số Realtime
+        console.log("Dữ liệu mới nhận được:", room); // Kiểm tra trong Console
+
+        // Cập nhật điểm số ngay lập tức
         document.getElementById('score-p1').innerText = room.p1_score;
         document.getElementById('score-p2').innerText = room.p2_score;
         playersData.p1_score = room.p1_score;
         playersData.p2_score = room.p2_score;
 
-        // Tự động vào game khi P2 tham gia (dành cho P1)
+        // Quan trọng: Chuyển Người chơi 1 từ Lobby vào Game khi P2 tham gia
         const isCurrentlyInLobby = !document.getElementById('screen-lobby').classList.contains('hidden');
         if (room.status === 'playing' && isCurrentlyInLobby) {
             showGameUI(room);
         }
 
-        // Kết thúc game
+        // Kết thúc game khi cả hai hoàn thành
         if (room.p1_idx >= myData.length && room.p2_idx >= myData.length) {
             showResult();
         }
-    }).subscribe();
+    })
+    .subscribe((status) => {
+        console.log("Trạng thái kết nối Realtime:", status);
+    });
 }
 // 3. HIỂN THỊ CÂU HỎI
 function renderQuestion() {
