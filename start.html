@@ -1,361 +1,4 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hubi Online Quiz Battle</title>
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-    :root { 
-        --p1-color: #3498db; 
-        --p2-color: #e74c3c; 
-        --success: #2ecc71; 
-        --glass: rgba(255, 255, 255, 0.95);
-    }
-
-    body { 
-        font-family: 'Segoe UI', Tahoma, sans-serif; 
-        /* Nền Gradient xanh chuyên nghiệp thay cho màu xám cũ */
-        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
-        display: flex; 
-        justify-content: center; 
-        align-items: center; 
-        min-height: 100vh; 
-        margin: 0; 
-        color: #2c3e50;
-    }
-
-    #game-container { 
-        background: var(--glass); 
-        width: 90%; 
-        max-width: 700px; 
-        padding: 40px; 
-        border-radius: 24px; 
-        box-shadow: 0 20px 50px rgba(0,0,0,0.3); 
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.3);
-    }
-
-    .hidden { display: none; }
-    
-    /* Giao diện phòng chờ */
-    .lobby-box { 
-        padding: 30px; 
-        background: #f0f7ff; 
-        border-radius: 15px; 
-        border: 2px dashed #3498db; 
-        margin-bottom: 20px; 
-        text-align: center;
-    }
-    .copy-link { 
-        cursor: pointer; 
-        color: #3498db; 
-        font-weight: bold; 
-        text-decoration: underline; 
-        word-break: break-all;
-    }
-
-    /* Bảng điểm */
-    .scoreboard { display: flex; gap: 20px; margin-bottom: 30px; }
-    .player-card { 
-        flex: 1; 
-        padding: 20px; 
-        border-radius: 15px; 
-        border: 2px solid #edf2f7; 
-        background: #fff;
-        transition: all 0.3s ease; 
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-    }
-    /* Hiệu ứng thẻ người chơi đang trả lời */
-    .player-card.active { 
-        border-color: var(--success); 
-        background: #f0fff4; 
-        transform: translateY(-5px); 
-    }
-    .p1-tag { color: var(--p1-color); font-weight: 800; font-size: 0.9em; text-transform: uppercase; }
-    .p2-tag { color: var(--p2-color); font-weight: 800; font-size: 0.9em; text-transform: uppercase; }
-    .player-card b { font-size: 1.5em; }
-
-    /* Câu hỏi */
-    .question-text { 
-        font-size: 22px; 
-        font-weight: 700; 
-        margin-bottom: 30px; 
-        color: #1a202c; 
-        line-height: 1.4;
-    }
-    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-    .opt-btn { 
-        padding: 18px; 
-        border: 2px solid #e2e8f0; 
-        border-radius: 12px; 
-        background: #fff; 
-        cursor: pointer; 
-        font-size: 16px; 
-        font-weight: 600;
-        transition: all 0.2s; 
-        color: #4a5568;
-    }
-    .opt-btn:hover { 
-        background: #3498db; 
-        border-color: #3498db; 
-        color: white;
-        transform: scale(1.02);
-        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
-    }
-    
-    .timer { 
-        font-size: 20px; 
-        color: #e67e22; 
-        font-weight: bold; 
-        margin-bottom: 20px; 
-        background: #fffcf5;
-        display: inline-block;
-        padding: 5px 15px;
-        border-radius: 20px;
-        border: 1px solid #ffeeba;
-    }
-
-    /* Hiệu ứng Loading khi chờ đối thủ */
-    .loader {
-        border: 4px solid #f3f3f3;
-        border-top: 4px solid #3498db;
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-        margin: 20px auto;
-    }
-
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-
-    /* Nút về trang chủ */
-    .btn-home {
-        padding: 12px 25px;
-        background: var(--success);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: 0.3s;
-    }
-    .btn-home:hover { opacity: 0.9; transform: translateY(-2px); }
-    /* Màu khi đáp án đúng */
-.opt-btn.correct-flash {
-    background-color: #2ecc71 !important;
-    color: white !important;
-    border-color: #27ae60 !important;
-    animation: pulse 0.5s;
-}
-
-/* Màu khi đáp án sai */
-.opt-btn.wrong-flash {
-    background-color: #e74c3c !important;
-    color: white !important;
-    border-color: #c0392b !important;
-}
-
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-</style>
-</head>
-<body>
-
-<div id="game-container">
-    <div id="screen-lobby">
-        <h2>🎮 Chế độ Battle Online</h2>
-        <div class="lobby-box">
-            <p id="lobby-status">Đang khởi tạo phòng...</p>
-            <p id="room-link-container" class="hidden">Gửi link này cho bạn bè: <br> 
-               <span class="copy-link" id="invite-link" onclick="copyLink()">Đang lấy link...</span>
-            </p>
-        </div>
-        <p><i>Lưu ý: Game sẽ tự bắt đầu khi có người thứ 2 tham gia.</i></p>
-    </div>
-
-    <div id="screen-game" class="hidden">
-        <div class="timer">⏳ Thời gian: <span id="time-val">05:00</span></div>
-        <div class="scoreboard">
-            <div id="card-p1" class="player-card">
-                <span class="p1-tag">Người chơi 1</span><br>
-                <span id="name-p1">...</span>: <b id="score-p1">0</b>đ
-            </div>
-            <div id="card-p2" class="player-card">
-                <span class="p2-tag">Người chơi 2</span><br>
-                <span id="name-p2">...</span>: <b id="score-p2">0</b>đ
-            </div>
-        </div>
-        <div class="question-text" id="q-text">Đang tải câu hỏi...</div>
-        <div class="options-grid" id="q-options"></div>
-    </div>
-
-    <div id="screen-result" class="hidden">
-        <h1 id="winner-title">🏆 CHÚC MỪNG!</h1>
-        <p id="final-summary" style="font-size: 20px;"></p>
-        <button onclick="location.href='start.html'" style="padding: 10px 20px; cursor:pointer;">Về trang chủ</button>
-    </div>
-</div>
-
-<script>
-// --- CẤU HÌNH ---
-const SUPABASE_URL = 'https://tyhqwaunmanubqqyifwj.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5aHF3YXVubWFudWJxcXlpZndqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4ODg4ODAsImV4cCI6MjA4ODQ2NDg4MH0.7BSrbAV2WSY5gqZxQwG4-QybRaF-DNbDceNmFiVF1cQ';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const user = JSON.parse(localStorage.getItem('hubi_user'));
-let roomId = null;
-let isP1 = false;
-let playersData = { p1_score: 0, p2_score: 0 };
-let myIdx = 0;
-const myData = [
-    // --- NHÓM 1: SO SÁNH KÉP (DOUBLE COMPARATIVE) ---
-    { 
-        q: "Life in rural areas is becoming ______ difficult for farmers because of falling prices of agricultural products.", 
-        options: ["less and less", "fewer and fewer", "more and more", "more and less"], 
-        correct: "more and more" 
-    },
-    { 
-        q: "The more children sleep, ______ they are.", 
-        options: ["the healthiest", "the healthier", "healthier", "more healthy"], 
-        correct: "the healthier" 
-    },
-    { 
-        q: "She is losing ______ money because of her poor investment decisions.", 
-        options: ["more and more", "fewer and fewer", "less and less", "many and many"], 
-        correct: "more and more" 
-    },
-
-    // --- NHÓM 2: CÔNG NGHỆ & TRÍ TUỆ NHÂN TẠO (AI) ---
-    { 
-        q: "Artificial intelligence ______ to revolutionize the way we live and work in the next decade.", 
-        options: ["expects", "is expecting", "is expected", "expected"], 
-        correct: "is expected" 
-    },
-    { 
-        q: "By this time next year, scientists ______ a more sophisticated AI model.", 
-        options: ["develop", "will develop", "are developing", "will have developed"], 
-        correct: "will have developed" 
-    },
-    { 
-        q: "______ AI has many benefits, there are also concerns about its ethical implications.", 
-        options: ["Because", "Despite", "While", "Therefore"], 
-        correct: "While" 
-    },
-    { 
-        q: "The government is considering new regulations ______ the development of AI.", 
-        options: ["to govern", "governed", "govern", "governing"], 
-        correct: "to govern" 
-    },
-
-    // --- NHÓM 3: MỆNH ĐỀ QUAN HỆ & LIÊN TỪ ---
-    { 
-        q: "Mount Fuji in Japan is the most beautiful place we ______.", 
-        options: ["had ever visited", "have ever visited", "have ever visit", "had ever visit"], 
-        correct: "have ever visited" 
-    },
-    { 
-        q: "Plastic takes hundreds of years to decompose in the ground, ______ is bad for the environment.", 
-        options: ["Which", "Who", "That", "When"], 
-        correct: "Which" 
-    },
-    { 
-        q: "The anchor reported the news calmly, ______ he were completely unaware of the serious situation.", 
-        options: ["so that", "even though", "as if", "because"], 
-        correct: "as if" 
-    },
-
-    // --- NHÓM 4: CỤM ĐỘNG TỪ (PHRASAL VERBS) & GIỚI TỪ ---
-    { 
-        q: "A group of students carried ______ research on Korean culture and cuisine.", 
-        options: ["for", "out", "off", "by"], 
-        correct: "out" 
-    },
-    { 
-        q: "My grandparents looked ______ my brother when he was small.", 
-        options: ["with", "at", "into", "after"], 
-        correct: "after" 
-    },
-    { 
-        q: "Please turn off ______ lights when you leave ______ room.", 
-        options: ["the/the", "a/a", "the/a", "a/the"], 
-        correct: "the/the" 
-    },
-    { 
-        q: "I ______ the accident when I was waiting for the taxi.", 
-        options: ["was seeing", "saw", "seen", "see"], 
-        correct: "saw" 
-    },
-
-    // --- NHÓM 5: TỔNG HỢP KIẾN THỨC NÂNG CAO ---
-    { 
-        q: "Protecting wildlife is ______ important than before because many species are endangered.", 
-        options: ["very", "more", "most", "as"], 
-        correct: "more" 
-    },
-    { 
-        q: "If people were more aware of wildlife conservation, the situation would be much ______.", 
-        options: ["good", "well", "better", "best"], 
-        correct: "better" 
-    },
-    { 
-        q: "The more you practice speaking English, ______ you will become.", 
-        options: ["the more fluently", "the most fluently", "the more fluent", "more fluent"], 
-        correct: "the more fluent" 
-    },
-    { 
-        q: "The city is becoming ______ crowded as more people move from the countryside.", 
-        options: ["more and more", "less and less", "fewer and fewer", "most and most"], 
-        correct: "more and more" 
-    },
-    { 
-        q: "No sooner had he arrived ______ the rain started to pour down.", 
-        options: ["than", "when", "then", "that"], 
-        correct: "than" 
-    },
-    { 
-        q: "Hardly ______ entered the office when the phone rang.", 
-        options: ["had he", "he had", "did he", "has he"], 
-        correct: "had he" 
-    },
-
-    // --- NHÓM 6: CÂU ĐÚNG / SAI (THỂ SAI KHIẾN & NGỮ PHÁP) ---
-    { 
-        q: "Cấu trúc: 'Anna got her brother to repair her bike' là đúng hay sai?", 
-        options: ["Đúng", "Sai"], 
-        correct: "Đúng" 
-    },
-    { 
-        q: "Câu: 'He get his house renovated by a team' là đúng hay sai? (Gợi ý: Chia động từ)", 
-        options: ["Đúng", "Sai"], 
-        correct: "Sai" 
-    },
-    { 
-        q: "Câu: 'Mr. Smith is an old customer and a honest man' là đúng hay sai?", 
-        options: ["Đúng", "Sai"], 
-        correct: "Sai" 
-    },
-    { 
-        q: "Cấu trúc: 'We got our house painted last summer' (Thể bị động sai khiến) là đúng?", 
-        options: ["Đúng", "Sai"], 
-        correct: "Đúng" 
-    },
-    { 
-        q: "Câu: 'The more he works, the most tired he feels' là đúng hay sai?", 
-        options: ["Đúng", "Sai"], 
-        correct: "Sai" 
-    }
-];
-// 1. KHỞI TẠO TRẬN ĐẤU
-// 1. KHỞI TẠO TRẬN ĐẤU (Đã sửa lỗi kẹt màn hình cho P2)
+// 1. KHỞI TẠO TRẬN ĐẤU (Bản sửa lỗi đồng bộ P1 & P2)
 async function initBattle() {
     if (!user) { alert("Bạn cần đăng nhập!"); window.location.href='index.html'; return; }
 
@@ -367,22 +10,23 @@ async function initBattle() {
         roomId = joinRoomId;
         isP1 = false;
         
-        // Cập nhật thông tin P2 và chuyển status sang 'playing'
+        // Bước 1: Lắng nghe trước để không bỏ lỡ tín hiệu
+        listenRealtime();
+
+        // Bước 2: Cập nhật thông tin để "kích hoạt" trận đấu cho cả 2
         const { data, error } = await supabaseClient.from('rooms').update({ 
             p2_id: user.id, 
             p2_name: user.email.split('@')[0], 
             status: 'playing' 
-        }).eq('id', roomId).select(); // Thêm .select() để lấy dữ liệu phòng ngay lập tức
+        }).eq('id', roomId).select();
         
         if(error || !data || data.length === 0) {
             alert("Phòng không tồn tại hoặc đã đầy!");
+            window.location.href = 'start.html'; // Quay về nếu lỗi
             return;
         }
 
-        // Kích hoạt lắng nghe để cập nhật điểm đối thủ
-        listenRealtime();
-        
-        // CHỦ ĐỘNG VÀO GAME LUÔN (Không đợi Realtime phản hồi chính mình)
+        // Bước 3: P2 chủ động vào game với dữ liệu vừa update
         showGameUI(data[0]);
         
     } else {
@@ -400,121 +44,43 @@ async function initBattle() {
             const fullLink = window.location.origin + window.location.pathname + '?room=' + roomId;
             document.getElementById('invite-link').innerText = fullLink;
             document.getElementById('room-link-container').classList.remove('hidden');
+            document.getElementById('lobby-status').innerText = "Đang đợi đối thủ tham gia...";
+            
+            // P1 bắt đầu lắng nghe, khi P2 update status='playing', P1 sẽ tự vào game
             listenRealtime();
         }
     }
 }
 
-// 2. LẮNG NGHE ĐỒNG BỘ (REALTIME)
+// 2. LẮNG NGHE ĐỒNG BỘ (Sửa điều kiện lọc payload)
 function listenRealtime() {
     supabaseClient.channel(`room:${roomId}`)
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, 
+    .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'rooms', 
+        filter: `id=eq.${roomId}` 
+    }, 
     payload => {
         const room = payload.new;
         
-        // Chỉ cập nhật điểm của ĐỐI THỦ vào biến local (điểm của mình đã tự cập nhật ở submitAnswer)
-        if (isP1) {
-            playersData.p2_score = room.p2_score;
-        } else {
-            playersData.p1_score = room.p1_score;
-        }
-
-        // Cập nhật hiển thị bảng điểm
+        // Cập nhật điểm số hiển thị liên tục cho cả 2
         document.getElementById('score-p1').innerText = room.p1_score;
         document.getElementById('score-p2').innerText = room.p2_score;
 
-        // Bắt đầu game khi P2 vào
-        if (room.status === 'playing' && document.getElementById('screen-game').classList.contains('hidden')) {
+        // Cập nhật điểm số vào biến local của mình
+        playersData.p1_score = room.p1_score;
+        playersData.p2_score = room.p2_score;
+
+        // CHỈ chuyển sang màn hình chơi nếu đang ở sảnh (lobby)
+        const isCurrentlyInLobby = !document.getElementById('screen-lobby').classList.contains('hidden');
+        if (room.status === 'playing' && isCurrentlyInLobby) {
             showGameUI(room);
         }
 
-        // Kiểm tra kết thúc: Cả 2 đều làm xong hết số câu trong myData
+        // Kiểm tra kết thúc khi cả hai đã vượt qua số câu hỏi
         if (room.p1_idx >= myData.length && room.p2_idx >= myData.length) {
             showResult();
         }
     }).subscribe();
 }
-
-// 3. HIỂN THỊ CÂU HỎI
-function renderQuestion() {
-    // Nếu người chơi hiện tại đã làm hết câu hỏi của mình
-    if (myIdx >= myData.length) {
-        document.getElementById('q-text').innerText = "Bạn đã hoàn thành! Đang đợi đối thủ...";
-        document.getElementById('q-options').innerHTML = '<div class="loader">Đang đợi...</div>';
-        return;
-    }
-
-    const q = myData[myIdx];
-    document.getElementById('q-text').innerText = `Câu ${myIdx + 1}: ${q.q}`;
-    const area = document.getElementById('q-options');
-    area.innerHTML = '';
-    
-    q.options.forEach(opt => {
-        const btn = document.createElement('button');
-        btn.className = 'opt-btn';
-        btn.innerText = opt;
-        btn.onclick = () => submitAnswer(opt, q.correct); 
-        area.appendChild(btn);
-    });
-}
-
-// 4. GỬI ĐÁP ÁN LÊN SQL
-async function submitAnswer(selected, correct) {
-    // 1. Tìm tất cả các nút đáp án và vô hiệu hóa để tránh bấm nhiều lần
-    const buttons = document.querySelectorAll('.opt-btn');
-    buttons.forEach(btn => {
-        btn.style.pointerEvents = 'none'; // Không cho bấm nữa
-        if (btn.innerText === correct) {
-            btn.classList.add('correct-flash'); // Hiện màu xanh cho câu đúng
-        } else if (btn.innerText === selected && selected !== correct) {
-            btn.classList.add('wrong-flash'); // Hiện màu đỏ nếu chọn sai
-        }
-    });
-
-    // 2. Tính điểm
-    let scoreGain = (selected === correct) ? 4 : 0;
-    myIdx++; 
-
-    // 3. Gửi dữ liệu lên Supabase
-    const updatePayload = isP1 
-        ? { p1_score: playersData.p1_score + scoreGain, p1_idx: myIdx }
-        : { p2_score: playersData.p2_score + scoreGain, p2_idx: myIdx };
-
-    await supabaseClient.from('rooms').update(updatePayload).eq('id', roomId);
-
-    // 4. Đợi 0.8 giây để người chơi kịp nhìn thấy màu sắc rồi mới sang câu tiếp theo
-    setTimeout(() => {
-        renderQuestion();
-    }, 800);
-}
-function showGameUI(room) {
-    document.getElementById('screen-lobby').classList.add('hidden');
-    document.getElementById('screen-game').classList.remove('hidden');
-    document.getElementById('name-p1').innerText = room.p1_name;
-    document.getElementById('name-p2').innerText = room.p2_name;
-    renderQuestion();
-}
-
-function showResult() {
-    document.getElementById('screen-game').classList.add('hidden');
-    document.getElementById('screen-result').classList.remove('hidden');
-    
-    const s1 = playersData.p1_score;
-    const s2 = playersData.p2_score;
-    let msg = s1 > s2 ? "Người chơi 1 thắng!" : (s2 > s1 ? "Người chơi 2 thắng!" : "Hòa nhau!");
-    
-    document.getElementById('winner-title').innerText = "🏆 " + msg;
-    document.getElementById('final-summary').innerText = `Tỉ số: ${s1} - ${s2}`;
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-}
-
-function copyLink() {
-    const link = document.getElementById('invite-link').innerText;
-    navigator.clipboard.writeText(link);
-    alert("Đã copy link! Hãy gửi cho bạn bè.");
-}
-
-initBattle();
-</script>
-</body>
-</html>
