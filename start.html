@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hubi Online Quiz Battle - Fixed</title>
+    <title>Hubi Online Quiz Battle - Sound Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --p1-color: #3498db; --p2-color: #e74c3c; --success: #2ecc71; --glass: rgba(255, 255, 255, 0.95); }
         body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        #game-container { background: var(--glass); width: 90%; max-width: 700px; padding: 40px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); backdrop-filter: blur(10px); }
+        #game-container { background: var(--glass); width: 90%; max-width: 700px; padding: 40px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); backdrop-filter: blur(10px); transition: transform 0.1s; }
         .hidden { display: none; }
         .lobby-box { padding: 30px; background: #f0f7ff; border-radius: 15px; border: 2px dashed #3498db; text-align: center; }
         .copy-link { cursor: pointer; color: #3498db; font-weight: bold; text-decoration: underline; word-break: break-all; }
@@ -21,16 +21,27 @@
         .opt-btn:hover { background: #3498db; color: white; }
         .opt-btn.correct-flash { background-color: #2ecc71 !important; color: white !important; }
         .opt-btn.wrong-flash { background-color: #e74c3c !important; color: white !important; }
+        
+        /* Hiệu ứng rung khi sai */
+        @keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(-10px); } 50% { transform: translateX(10px); } 75% { transform: translateX(-10px); } 100% { transform: translateX(0); } }
+        .shake-effect { animation: shake 0.4s; }
     </style>
 </head>
 <body>
 
+<audio id="audio-correct" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+<audio id="audio-wrong" src="https://www.soundjay.com/buttons/sounds/button-10.mp3"></audio>
+<audio id="audio-bgm" src="https://www.soundjay.com/free-music/sounds/midnight-ride-01a.mp3" loop></audio>
+
 <div id="game-container">
     <div id="screen-lobby">
-        <h2>🎮 Chế độ Battle Online</h2>
+        <h2>🎮 Hubi Quiz Battle Online</h2>
         <div class="lobby-box">
-            <p id="lobby-status">Đang khởi tạo...</p>
-            <p id="room-link-container" class="hidden">Link mời: <br><span class="copy-link" id="invite-link" onclick="copyLink()"></span></p>
+            <p id="lobby-status">Đang khởi tạo phòng...</p>
+            <div id="room-link-container" class="hidden">
+                Link mời đối thủ: <br>
+                <span class="copy-link" id="invite-link" onclick="copyLink()"></span>
+            </div>
         </div>
     </div>
 
@@ -43,10 +54,10 @@
         <div id="q-options" class="options-grid"></div>
     </div>
 
-    <div id="screen-result" class="hidden">
+    <div id="screen-result" class="hidden" style="text-align:center;">
         <h1 id="winner-title"></h1>
-        <p id="final-summary"></p>
-        <button onclick="location.reload()">Chơi lại</button>
+        <p id="final-summary" style="font-size:20px;"></p>
+        <button onclick="location.reload()" style="padding:15px 30px; border-radius:10px; cursor:pointer;">Chơi ván mới</button>
     </div>
 </div>
 
@@ -204,23 +215,33 @@ async function initBattle() {
 
     if (joinId) {
         roomId = joinId; isP1 = false;
-        const { data } = await supabaseClient.from('rooms').update({ p2_id: user.id, p2_name: user.email.split('@')[0], status: 'playing' }).eq('id', roomId).select();
+        const { data } = await supabaseClient.from('rooms').update({ 
+            p2_id: user.id, 
+            p2_name: user.email.split('@')[0], 
+            status: 'playing' 
+        }).eq('id', roomId).select();
         if (data?.[0]) { showGameUI(data[0]); listenRealtime(); }
     } else {
         isP1 = true;
-        const { data } = await supabaseClient.from('rooms').insert([{ p1_id: user.id, p1_name: user.email.split('@')[0], status: 'waiting' }]).select();
+        const { data } = await supabaseClient.from('rooms').insert([{ 
+            p1_id: user.id, 
+            p1_name: user.email.split('@')[0], 
+            status: 'waiting' 
+        }]).select();
         if (data?.[0]) {
             roomId = data[0].id;
             document.getElementById('invite-link').innerText = window.location.href + '?room=' + roomId;
             document.getElementById('room-link-container').classList.remove('hidden');
-            document.getElementById('lobby-status').innerText = "Đang đợi đối thủ...";
+            document.getElementById('lobby-status').innerText = "Đang đợi đối thủ tham gia...";
             listenRealtime();
         }
     }
 }
 
 function listenRealtime() {
-    supabaseClient.channel(`room:${roomId}`).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, payload => {
+    supabaseClient.channel(`room:${roomId}`).on('postgres_changes', { 
+        event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` 
+    }, payload => {
         const room = payload.new;
         playersData.p1_score = Number(room.p1_score) || 0;
         playersData.p2_score = Number(room.p2_score) || 0;
@@ -236,24 +257,48 @@ function listenRealtime() {
 
 function renderQuestion() {
     if (myIdx >= myData.length) { 
-        document.getElementById('q-text').innerText = "Đang chờ đối thủ hoàn thành...";
+        document.getElementById('q-text').innerText = "Bạn đã hoàn thành! Đang chờ đối thủ...";
         document.getElementById('q-options').innerHTML = "";
         return; 
     }
     const item = myData[myIdx];
     document.getElementById('q-text').innerText = item.q;
-    const optHtml = item.options.map(opt => `<button class="opt-btn" onclick="submitAnswer('${opt}', '${item.correct}')">${opt}</button>`).join('');
-    document.getElementById('q-options').innerHTML = optHtml;
+    document.getElementById('q-options').innerHTML = item.options.map(opt => 
+        `<button class="opt-btn" onclick="submitAnswer('${opt}', '${item.correct}')">${opt}</button>`
+    ).join('');
 }
 
 async function submitAnswer(selected, correct) {
-    let scoreGain = (selected === correct) ? 4 : 0;
-    const currentScore = isP1 ? playersData.p1_score : playersData.p2_score;
+    const audioCorrect = document.getElementById('audio-correct');
+    const audioWrong = document.getElementById('audio-wrong');
+    const container = document.getElementById('game-container');
+
+    const buttons = document.querySelectorAll('.opt-btn');
+    buttons.forEach(btn => btn.style.pointerEvents = 'none');
+
+    let scoreGain = 0;
+    if (selected === correct) {
+        scoreGain = 4;
+        audioCorrect.currentTime = 0;
+        audioCorrect.play();
+        buttons.forEach(btn => { if(btn.innerText === correct) btn.classList.add('correct-flash'); });
+    } else {
+        audioWrong.currentTime = 0;
+        audioWrong.play();
+        container.classList.add('shake-effect');
+        setTimeout(() => container.classList.remove('shake-effect'), 400);
+        buttons.forEach(btn => {
+            if(btn.innerText === correct) btn.classList.add('correct-flash');
+            if(btn.innerText === selected) btn.classList.add('wrong-flash');
+        });
+    }
+
     myIdx++;
+    const currentScore = isP1 ? playersData.p1_score : playersData.p2_score;
     const updatePayload = isP1 ? { p1_score: currentScore + scoreGain, p1_idx: myIdx } : { p2_score: currentScore + scoreGain, p2_idx: myIdx };
     
     await supabaseClient.from('rooms').update(updatePayload).eq('id', roomId);
-    renderQuestion();
+    setTimeout(renderQuestion, 800);
 }
 
 function showGameUI(room) {
@@ -261,21 +306,27 @@ function showGameUI(room) {
     document.getElementById('screen-game').classList.remove('hidden');
     document.getElementById('name-p1').innerText = room.p1_name;
     document.getElementById('name-p2').innerText = room.p2_name;
+    
+    const bgm = document.getElementById('audio-bgm');
+    bgm.volume = 0.2;
+    bgm.play().catch(() => console.log("Chờ tương tác để phát nhạc"));
+    
     renderQuestion();
 }
 
 function showResult() {
+    document.getElementById('audio-bgm').pause();
     document.getElementById('screen-game').classList.add('hidden');
     document.getElementById('screen-result').classList.remove('hidden');
     const s1 = playersData.p1_score, s2 = playersData.p2_score;
-    document.getElementById('winner-title').innerText = s1 > s2 ? "Người chơi 1 thắng!" : (s2 > s1 ? "Người chơi 2 thắng!" : "Hòa!");
-    document.getElementById('final-summary').innerText = `Tỉ số: ${s1} - ${s2}`;
-    confetti({ particleCount: 150, spread: 70 });
+    document.getElementById('winner-title').innerText = s1 > s2 ? "🏆 P1 Chiến Thắng!" : (s2 > s1 ? "🏆 P2 Chiến Thắng!" : "🤝 Kết quả Hòa!");
+    document.getElementById('final-summary').innerText = `Tỉ số cuối cùng: ${s1} - ${s2}`;
+    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 }
 
 function copyLink() {
     navigator.clipboard.writeText(document.getElementById('invite-link').innerText);
-    alert("Đã copy link!");
+    alert("Đã copy link mời!");
 }
 
 initBattle();
