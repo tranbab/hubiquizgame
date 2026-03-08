@@ -7,29 +7,49 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --p1-color: #3498db; --p2-color: #e74c3c; --success: #2ecc71; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        #game-container { background: white; width: 90%; max-width: 800px; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .hidden { display: none; }
-        
-        /* Giao diện phòng chờ */
-        .lobby-box { padding: 20px; background: #e8f4fd; border-radius: 10px; border: 2px dashed #3498db; margin-bottom: 20px; }
-        .copy-link { cursor: pointer; color: #3498db; font-weight: bold; text-decoration: underline; }
+        body {
+    background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d); /* Nền chuyển màu Hubi Style */
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-        /* Bảng điểm */
-        .scoreboard { display: flex; gap: 20px; margin-bottom: 20px; }
-        .player-card { flex: 1; padding: 15px; border-radius: 10px; border: 2px solid #ddd; transition: 0.3s; }
-        .player-card.active { border-color: var(--success); background: #fafffa; transform: translateY(-5px); }
-        .p1-tag { color: var(--p1-color); font-weight: bold; }
-        .p2-tag { color: var(--p2-color); font-weight: bold; }
+#game-container {
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    padding: 2rem;
+    border: 1px solid rgba(255,255,255,0.3);
+}
 
-        /* Câu hỏi */
-        .question-text { font-size: 22px; font-weight: bold; margin-bottom: 25px; color: #2c3e50; }
-        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .opt-btn { padding: 15px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: 16px; transition: 0.2s; }
-        .opt-btn:hover { background: #f8f9fa; border-color: #3498db; }
-        
-        .timer { font-size: 24px; color: #e67e22; font-weight: bold; margin-bottom: 10px; }
+.player-card {
+    background: #fdfdfd;
+    border: 2px solid #eee;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.player-card.active {
+    border-color: #3498db;
+    background: #ebf5ff;
+}
+
+/* Hiệu ứng loading khi đợi đối thủ */
+.loader {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
     </style>
 </head>
 <body>
@@ -264,54 +284,62 @@ function listenRealtime() {
     payload => {
         const room = payload.new;
         
-        // Cập nhật điểm số
+        // Cập nhật điểm số và tên
         document.getElementById('score-p1').innerText = room.p1_score;
         document.getElementById('score-p2').innerText = room.p2_score;
         playersData.p1_score = room.p1_score;
         playersData.p2_score = room.p2_score;
 
-        // Chuyển màn hình khi bắt đầu chơi
+        // Chuyển sang màn hình chơi game
         if (room.status === 'playing' && document.getElementById('screen-game').classList.contains('hidden')) {
             showGameUI(room);
         }
 
-        // Đồng bộ câu hỏi: Nếu bên kia trả lời xong và current_idx tăng lên
-        if (room.current_idx > currentIdx) {
-            currentIdx = room.current_idx;
-            if (currentIdx < myData.length) renderQuestion();
-            else showResult();
+        // ĐIỀU KIỆN KẾT THÚC: Chỉ hiện kết quả khi cả 2 đã xong hết câu hỏi
+        if (room.p1_idx >= myData.length && room.p2_idx >= myData.length) {
+            showResult();
         }
     }).subscribe();
 }
 
 // 3. HIỂN THỊ CÂU HỎI
 function renderQuestion() {
-    const q = myData[currentIdx];
-    document.getElementById('q-text').innerText = `Câu ${currentIdx + 1}: ${q.q}`;
+    // Kiểm tra nếu bạn đã hoàn thành tất cả câu hỏi trong myData
+    if (myIdx >= myData.length) {
+        document.getElementById('q-text').innerText = "Đang đợi đối thủ hoàn thành...";
+        document.getElementById('q-options').innerHTML = '<div class="loader"></div>';
+        return;
+    }
+
+    const q = myData[myIdx]; // Sử dụng myIdx thay vì currentIdx
+    document.getElementById('q-text').innerText = `Câu ${myIdx + 1}: ${q.q}`;
     const area = document.getElementById('q-options');
     area.innerHTML = '';
-
-    // Xác định ai là người đang đến lượt (Ví dụ: P1 câu lẻ, P2 câu chẵn hoặc chơi chung)
-    // Ở đây thiết lập ai nhanh hơn người đó thắng
     
     q.options.forEach(opt => {
         const btn = document.createElement('button');
         btn.className = 'opt-btn';
         btn.innerText = opt;
-        btn.onclick = () => submitAnswer(opt, q.correct);
+        // Khi bấm vào, sẽ gọi hàm submitAnswer bên dưới
+        btn.onclick = () => submitAnswer(opt, q.correct); 
         area.appendChild(btn);
     });
 }
-
 // 4. GỬI ĐÁP ÁN LÊN SQL
 async function submitAnswer(selected, correct) {
     let scoreGain = (selected === correct) ? 4 : 0;
-    
-    const updatePayload = isP1 
-        ? { p1_score: playersData.p1_score + scoreGain, current_idx: currentIdx + 1 }
-        : { p2_score: playersData.p2_score + scoreGain, current_idx: currentIdx + 1 };
+    myIdx++; // Tăng chỉ số câu hỏi của RIÊNG bạn lên 1
 
+    // Quyết định cập nhật vào cột p1_idx hay p2_idx dựa trên việc bạn là người chơi 1 hay 2
+    const updatePayload = isP1 
+        ? { p1_score: playersData.p1_score + scoreGain, p1_idx: myIdx }
+        : { p2_score: playersData.p2_score + scoreGain, p2_idx: myIdx };
+
+    // Gửi dữ liệu lên Supabase để đối thủ thấy được điểm và tiến độ của bạn
     await supabaseClient.from('rooms').update(updatePayload).eq('id', roomId);
+    
+    // Quan trọng: Gọi lại renderQuestion ngay lập tức để sang câu tiếp theo cho bạn
+    renderQuestion(); 
 }
 
 function showGameUI(room) {
@@ -344,4 +372,5 @@ function copyLink() {
 initBattle();
 </script>
 </body>
+
 </html>
