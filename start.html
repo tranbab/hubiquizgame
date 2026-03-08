@@ -400,24 +400,25 @@ function listenRealtime() {
     payload => {
         const room = payload.new;
         
-        // Cập nhật điểm số và tên
+        // Cập nhật điểm số
         document.getElementById('score-p1').innerText = room.p1_score;
         document.getElementById('score-p2').innerText = room.p2_score;
         playersData.p1_score = room.p1_score;
         playersData.p2_score = room.p2_score;
 
-        // Chuyển sang màn hình chơi game
+        // Chuyển màn hình khi bắt đầu chơi
         if (room.status === 'playing' && document.getElementById('screen-game').classList.contains('hidden')) {
             showGameUI(room);
         }
 
-        // ĐIỀU KIỆN KẾT THÚC: Chỉ hiện kết quả khi cả 2 đã xong hết câu hỏi
-        if (room.p1_idx >= myData.length && room.p2_idx >= myData.length) {
-            showResult();
+        // Đồng bộ câu hỏi: Nếu bên kia trả lời xong và current_idx tăng lên
+        if (room.current_idx > currentIdx) {
+            currentIdx = room.current_idx;
+            if (currentIdx < myData.length) renderQuestion();
+            else showResult();
         }
     }).subscribe();
 }
-
 // 3. HIỂN THỊ CÂU HỎI
 function renderQuestion() {
     // Kiểm tra nếu bạn đã hoàn thành tất cả câu hỏi trong myData
@@ -443,16 +444,20 @@ function renderQuestion() {
 }
 // 4. GỬI ĐÁP ÁN LÊN SQL
 async function submitAnswer(selected, correct) {
-    // 1. Tìm tất cả các nút đáp án và vô hiệu hóa để tránh bấm nhiều lần
-    const buttons = document.querySelectorAll('.opt-btn');
-    buttons.forEach(btn => {
-        btn.style.pointerEvents = 'none'; // Không cho bấm nữa
-        if (btn.innerText === correct) {
-            btn.classList.add('correct-flash'); // Hiện màu xanh cho câu đúng
-        } else if (btn.innerText === selected && selected !== correct) {
-            btn.classList.add('wrong-flash'); // Hiện màu đỏ nếu chọn sai
-        }
-    });
+    let scoreGain = (selected === correct) ? 4 : 0;
+    myIdx++; // Tăng chỉ số câu hỏi của RIÊNG bạn lên 1
+
+    // Quyết định cập nhật vào cột p1_idx hay p2_idx dựa trên việc bạn là người chơi 1 hay 2
+    const updatePayload = isP1 
+        ? { p1_score: playersData.p1_score + scoreGain, p1_idx: myIdx }
+        : { p2_score: playersData.p2_score + scoreGain, p2_idx: myIdx };
+
+    // Gửi dữ liệu lên Supabase để đối thủ thấy được điểm và tiến độ của bạn
+    await supabaseClient.from('rooms').update(updatePayload).eq('id', roomId);
+    
+    // Quan trọng: Gọi lại renderQuestion ngay lập tức để sang câu tiếp theo cho bạn
+    renderQuestion(); 
+}
 
     // 2. Tính điểm
     let scoreGain = (selected === correct) ? 4 : 0;
@@ -503,4 +508,5 @@ initBattle();
 </body>
 
 </html>
+
 
