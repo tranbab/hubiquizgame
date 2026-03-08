@@ -263,36 +263,34 @@ function listenRealtime() {
     payload => {
         const room = payload.new;
         
-        // Cập nhật điểm số
+        // Cập nhật điểm số hiển thị
         document.getElementById('score-p1').innerText = room.p1_score;
         document.getElementById('score-p2').innerText = room.p2_score;
         playersData.p1_score = room.p1_score;
         playersData.p2_score = room.p2_score;
 
-        // Chuyển màn hình khi bắt đầu chơi
+        // Chuyển sang màn hình chơi nếu P2 vừa vào
         if (room.status === 'playing' && document.getElementById('screen-game').classList.contains('hidden')) {
             showGameUI(room);
         }
 
-        // Đồng bộ câu hỏi: Nếu bên kia trả lời xong và current_idx tăng lên
-        if (room.current_idx > currentIdx) {
-            currentIdx = room.current_idx;
-            if (currentIdx < myData.length) renderQuestion();
-            else showResult();
+        // Kiểm tra nếu CẢ HAI đã hoàn thành hết số câu hỏi (myData.length)
+        if (room.p1_idx >= myData.length && room.p2_idx >= myData.length) {
+            showResult();
         }
     }).subscribe();
 }
 
 // 3. HIỂN THỊ CÂU HỎI
 function renderQuestion() {
-    // Kiểm tra nếu bạn đã hoàn thành tất cả câu hỏi trong myData
+    // Nếu người chơi hiện tại đã làm hết câu hỏi của mình
     if (myIdx >= myData.length) {
-        document.getElementById('q-text').innerText = "Đang đợi đối thủ hoàn thành...";
-        document.getElementById('q-options').innerHTML = '<div class="loader"></div>';
+        document.getElementById('q-text').innerText = "Bạn đã hoàn thành! Đang đợi đối thủ...";
+        document.getElementById('q-options').innerHTML = '<div class="loader">Đang đợi...</div>';
         return;
     }
 
-    const q = myData[myIdx]; // Sử dụng myIdx thay vì currentIdx
+    const q = myData[myIdx];
     document.getElementById('q-text').innerText = `Câu ${myIdx + 1}: ${q.q}`;
     const area = document.getElementById('q-options');
     area.innerHTML = '';
@@ -301,7 +299,6 @@ function renderQuestion() {
         const btn = document.createElement('button');
         btn.className = 'opt-btn';
         btn.innerText = opt;
-        // Khi bấm vào, sẽ gọi hàm submitAnswer bên dưới
         btn.onclick = () => submitAnswer(opt, q.correct); 
         area.appendChild(btn);
     });
