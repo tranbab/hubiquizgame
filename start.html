@@ -370,23 +370,27 @@ async function initBattle() {
         roomId = joinRoomId;
         isP1 = false;
         
+        // 1. Phải lắng nghe TRƯỚC để nhận điểm số của P1 sau này
         listenRealtime();
 
+        // 2. Cập nhật trạng thái và lấy luôn dữ liệu phòng mới nhất bằng .select()
         const { data, error } = await supabaseClient.from('rooms').update({ 
             p2_id: user.id, 
             p2_name: user.email.split('@')[0], 
             status: 'playing' 
-        }).eq('id', roomId).select();
+        }).eq('id', roomId).select(); // Quan trọng: .select() để lấy data ngay
         
         if(error || !data || data.length === 0) {
             alert("Phòng không tồn tại hoặc đã đầy!");
             window.location.href = 'start.html';
             return;
         }
+
+        // 3. CHỦ ĐỘNG VÀO GAME: Không đợi Realtime nữa vì ta đã có data ở bước trên
         showGameUI(data[0]);
         
     } else {
-        // --- LOGIC CHO NGƯỜI CHƠI 1 (TẠO PHÒNG & HIỆN LINK) ---
+        // --- LOGIC CHO NGƯỜI CHƠI 1 (Giữ nguyên) ---
         isP1 = true;
         const { data, error } = await supabaseClient.from('rooms').insert([{
             p1_id: user.id,
@@ -403,14 +407,10 @@ async function initBattle() {
 
         if (data && data.length > 0) {
             roomId = data[0].id;
-            // Tạo link mời
             const fullLink = window.location.origin + window.location.pathname + '?room=' + roomId;
-            
-            // HIỂN THỊ LINK RA MÀN HÌNH
             document.getElementById('invite-link').innerText = fullLink;
             document.getElementById('room-link-container').classList.remove('hidden');
             document.getElementById('lobby-status').innerText = "Phòng đã tạo! Đang đợi đối thủ...";
-            
             listenRealtime();
         }
     }
