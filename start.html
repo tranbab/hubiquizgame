@@ -3,66 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hubi Online Quiz Battle - Professional</title>
+    <title>Hubi Quiz Battle - Final Professional</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --p1-color: #3498db; --p2-color: #e74c3c; --success: #2ecc71; --glass: rgba(255, 255, 255, 0.95); }
         body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
-        #game-container { background: var(--glass); width: 90%; max-width: 700px; padding: 40px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); backdrop-filter: blur(10px); position: relative; }
+        #game-container { background: var(--glass); width: 90%; max-width: 600px; padding: 40px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); backdrop-filter: blur(10px); position: relative; text-align: center; }
         .hidden { display: none !important; }
         
-        /* Timer Style */
-        #timer-bar { height: 8px; background: #e2e8f0; border-radius: 4px; margin-bottom: 20px; overflow: hidden; }
+        /* Timer Bar */
+        #timer-bar { height: 10px; background: #eee; border-radius: 5px; margin-bottom: 20px; overflow: hidden; }
         #timer-progress { height: 100%; background: var(--p1-color); width: 100%; transition: width 1s linear; }
 
-        .lobby-box { padding: 30px; background: #f0f7ff; border-radius: 15px; border: 2px dashed #3498db; text-align: center; }
-        .copy-link { cursor: pointer; color: #3498db; font-weight: bold; text-decoration: underline; word-break: break-all; }
-        .scoreboard { display: flex; gap: 20px; margin-bottom: 20px; }
-        .player-card { flex: 1; padding: 15px; border-radius: 12px; background: #fff; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .question-text { font-size: 22px; font-weight: 700; margin-bottom: 25px; min-height: 60px; }
-        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .opt-btn { padding: 18px; border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; cursor: pointer; font-weight: 600; transition: 0.2s; }
-        .opt-btn:not(:disabled):hover { background: #3498db; color: white; transform: translateY(-2px); }
-        .correct-flash { background-color: #2ecc71 !important; color: white !important; border-color: #27ae60 !important; }
-        .wrong-flash { background-color: #e74c3c !important; color: white !important; border-color: #c0392b !important; }
+        .scoreboard { display: flex; gap: 15px; margin-bottom: 20px; }
+        .player-card { flex: 1; padding: 15px; border-radius: 12px; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .question-text { font-size: 20px; font-weight: 700; margin-bottom: 20px; min-height: 50px; }
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .opt-btn { padding: 15px; border: 2px solid #ddd; border-radius: 10px; background: #fff; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .opt-btn:disabled { cursor: not-allowed; }
+        .correct-flash { background: var(--success) !important; color: white !important; }
+        .wrong-flash { background: var(--p2-color) !important; color: white !important; }
         
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
-        .shake { animation: shake 0.3s; }
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: white; }
+        .shake { animation: shake 0.4s; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-10px); } 75% { transform: translateX(10px); } }
     </style>
 </head>
 <body>
 
-<audio id="audio-correct" src="https://www.soundjay.com/buttons/sounds/button-3.mp3" preload="auto"></audio>
-<audio id="audio-wrong" src="https://www.soundjay.com/buttons/sounds/button-10.mp3" preload="auto"></audio>
-<audio id="audio-bgm" src="https://www.soundjay.com/free-music/sounds/midnight-ride-01a.mp3" loop preload="auto"></audio>
+<audio id="audio-correct" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+<audio id="audio-wrong" src="https://www.soundjay.com/buttons/sounds/button-10.mp3"></audio>
+<audio id="audio-bgm" src="https://www.soundjay.com/free-music/sounds/midnight-ride-01a.mp3" loop></audio>
+
+<div id="overlay" class="hidden">
+    <h2>🎮 Trận đấu đã sẵn sàng!</h2>
+    <p>Nhấn nút dưới đây để bật âm thanh và bắt đầu.</p>
+    <button onclick="unlockAudio()" style="padding: 15px 40px; font-size: 20px; background: var(--success); color: white; border: none; border-radius: 10px; cursor: pointer;">SẴN SÀNG</button>
+</div>
 
 <div id="game-container">
     <div id="screen-lobby">
-        <h2>🎮 Hubi Battle Online</h2>
-        <div class="lobby-box">
-            <p id="lobby-status">Đang tạo phòng...</p>
-            <div id="room-link-container" class="hidden">
-                <p>Gửi link này cho bạn bè:</p>
-                <span class="copy-link" id="invite-link" onclick="copyLink()">Đang lấy link...</span>
-            </div>
+        <h2>Hubi Quiz Lobby</h2>
+        <p id="lobby-status">Đang khởi tạo...</p>
+        <div id="room-link-container" class="hidden">
+            <p>Mời đối thủ bằng link:</p>
+            <input type="text" id="invite-link" readonly style="width: 80%; padding: 10px; text-align: center; border-radius: 5px; border: 1px solid #ddd;">
+            <button onclick="copyLink()" style="margin-top: 10px; padding: 5px 15px;">Copy</button>
         </div>
     </div>
 
     <div id="screen-game" class="hidden">
         <div id="timer-bar"><div id="timer-progress"></div></div>
         <div class="scoreboard">
-            <div class="player-card"><span id="name-p1">P1</span>: <b id="score-p1">0</b>đ</div>
-            <div class="player-card"><span id="name-p2">P2</span>: <b id="score-p2">0</b>đ</div>
+            <div class="player-card">P1: <b id="score-p1">0</b></div>
+            <div class="player-card">P2: <b id="score-p2">0</b></div>
         </div>
-        <div class="question-text" id="q-text">Đang tải câu hỏi...</div>
+        <div class="question-text" id="q-text"></div>
         <div id="q-options" class="options-grid"></div>
     </div>
 
-    <div id="screen-result" class="hidden" style="text-align:center;">
+    <div id="screen-result" class="hidden">
         <h1 id="winner-title"></h1>
-        <p id="final-summary" style="font-size:22px; margin: 20px 0;"></p>
-        <button onclick="location.reload()" style="padding:15px 40px; background:#3498db; color:white; border:none; border-radius:10px; cursor:pointer; font-weight:bold;">Chơi ván mới</button>
+        <p id="final-summary"></p>
+        <button onclick="location.reload()">Chơi lại</button>
     </div>
 </div>
 
@@ -71,9 +75,10 @@ const SUPABASE_URL = 'https://tyhqwaunmanubqqyifwj.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5aHF3YXVubWFudWJxcXlpZndqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4ODg4ODAsImV4cCI6MjA4ODQ2NDg4MH0.7BSrbAV2WSY5gqZxQwG4-QybRaF-DNbDceNmFiVF1cQ';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const user = JSON.parse(localStorage.getItem('hubi_user')) || { id: 'user-' + Math.random(), email: 'Player@hubi.com' };
-let roomId, isP1 = false, myIdx = 0, timeLeft = 15, timerInterval;
+let roomId, isP1 = false, myIdx = 0, timeLeft = 15, timerInterval, currentRoomData;
 let playersData = { p1_score: 0, p2_score: 0 };
+const user = JSON.parse(localStorage.getItem('hubi_user')) || { id: 'u' + Date.now(), email: 'Guest@hubi.com' };
+
 const myData = [
     // --- NHÓM 1: SO SÁNH KÉP (DOUBLE COMPARATIVE) ---
     { 
@@ -212,90 +217,72 @@ const myData = [
         correct: "Sai" 
     }
 ];
+
 async function init() {
     const urlParams = new URLSearchParams(window.location.search);
     const joinId = urlParams.get('room');
 
     if (joinId) {
         roomId = joinId; isP1 = false;
-        const { data } = await supabaseClient.from('rooms').update({ 
-            p2_id: user.id, p2_name: user.email.split('@')[0], status: 'playing' 
-        }).eq('id', roomId).select();
-        if (data?.[0]) { startGame(data[0]); }
+        await supabaseClient.from('rooms').update({ p2_id: user.id, p2_name: user.email.split('@')[0], status: 'playing' }).eq('id', roomId);
     } else {
         isP1 = true;
-        const { data } = await supabaseClient.from('rooms').insert([{ 
-            p1_id: user.id, p1_name: user.email.split('@')[0], status: 'waiting' 
-        }]).select();
+        const { data } = await supabaseClient.from('rooms').insert([{ p1_id: user.id, p1_name: user.email.split('@')[0], status: 'waiting' }]).select();
         if (data?.[0]) {
             roomId = data[0].id;
-            document.getElementById('invite-link').innerText = window.location.origin + window.location.pathname + '?room=' + roomId;
+            document.getElementById('invite-link').value = window.location.href + '?room=' + roomId;
             document.getElementById('room-link-container').classList.remove('hidden');
-            document.getElementById('lobby-status').innerText = "Đang đợi đối thủ...";
+            document.getElementById('lobby-status').innerText = "Đang chờ đối thủ...";
         }
     }
     listenRealtime();
 }
 
 function listenRealtime() {
-    supabaseClient.channel(`room:${roomId}`).on('postgres_changes', { 
-        event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` 
-    }, payload => {
+    supabaseClient.channel(`room:${roomId}`).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, payload => {
         const room = payload.new;
+        currentRoomData = room;
         playersData.p1_score = Number(room.p1_score) || 0;
         playersData.p2_score = Number(room.p2_score) || 0;
         document.getElementById('score-p1').innerText = playersData.p1_score;
         document.getElementById('score-p2').innerText = playersData.p2_score;
 
         if (room.status === 'playing' && document.getElementById('screen-game').classList.contains('hidden')) {
-            startGame(room);
+            document.getElementById('overlay').classList.remove('hidden');
         }
         if (room.p1_idx >= myData.length && room.p2_idx >= myData.length) showFinalResult();
     }).subscribe();
 }
 
-function startGame(room) {
+function unlockAudio() {
+    const bgm = document.getElementById('audio-bgm');
+    bgm.volume = 0.2;
+    bgm.play().catch(() => {});
+    document.getElementById('overlay').classList.add('hidden');
     document.getElementById('screen-lobby').classList.add('hidden');
     document.getElementById('screen-game').classList.remove('hidden');
-    document.getElementById('name-p1').innerText = room.p1_name;
-    document.getElementById('name-p2').innerText = room.p2_name || "Đối thủ";
-    
-    const bgm = document.getElementById('audio-bgm');
-    bgm.volume = 0.15;
-    bgm.play().catch(() => {});
-    
     renderQuestion();
 }
 
-function startTimer() {
-    clearInterval(timerInterval);
+function renderQuestion() {
+    if (myIdx >= myData.length) {
+        clearInterval(timerInterval);
+        document.getElementById('q-text').innerText = "Hoàn thành! Đang đợi đối thủ...";
+        document.getElementById('q-options').innerHTML = "";
+        return;
+    }
     timeLeft = 15;
-    const bar = document.getElementById('timer-progress');
-    bar.style.width = "100%";
-    
+    document.getElementById('timer-progress').style.width = "100%";
+    clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         timeLeft--;
-        bar.style.width = (timeLeft / 15 * 100) + "%";
-        if (timeLeft <= 0) {
-            clearInterval(timerInterval);
-            submitAnswer("", ""); // Tự động nộp bài nếu hết giờ
-        }
+        document.getElementById('timer-progress').style.width = (timeLeft/15*100) + "%";
+        if (timeLeft <= 0) submitAnswer("", "");
     }, 1000);
-}
 
-function renderQuestion() {
-    if (myIdx >= myData.length) { 
-        clearInterval(timerInterval);
-        document.getElementById('q-text').innerText = "Hoàn thành! Đang chờ đối thủ...";
-        document.getElementById('q-options').innerHTML = "";
-        return; 
-    }
-    startTimer();
     const item = myData[myIdx];
     document.getElementById('q-text').innerText = item.q;
-    document.getElementById('q-options').innerHTML = item.options.map(opt => 
-        `<button class="opt-btn" onclick="submitAnswer('${opt}', '${item.correct}')">${opt}</button>`
-    ).join('');
+    document.getElementById('q-options').innerHTML = item.options.map(opt => `<button class="opt-btn" onclick="submitAnswer('${opt}', '${item.correct}')">${opt}</button>`).join('');
 }
 
 async function submitAnswer(selected, correct) {
@@ -318,13 +305,9 @@ async function submitAnswer(selected, correct) {
     }
 
     myIdx++;
-    // Lấy điểm mới nhất từ Database để tránh lỗi cộng dồn sai
-    const { data: currentRoom } = await supabaseClient.from('rooms').select('*').eq('id', roomId).single();
     const scoreGain = isCorrect ? 4 : 0;
-    
-    const updateData = isP1 
-        ? { p1_score: (Number(currentRoom.p1_score) || 0) + scoreGain, p1_idx: myIdx }
-        : { p2_score: (Number(currentRoom.p2_score) || 0) + scoreGain, p2_idx: myIdx };
+    const currentScore = isP1 ? playersData.p1_score : playersData.p2_score;
+    const updateData = isP1 ? { p1_score: currentScore + scoreGain, p1_idx: myIdx } : { p2_score: currentScore + scoreGain, p2_idx: myIdx };
 
     await supabaseClient.from('rooms').update(updateData).eq('id', roomId);
     setTimeout(renderQuestion, 1000);
@@ -335,13 +318,15 @@ function showFinalResult() {
     document.getElementById('screen-game').classList.add('hidden');
     document.getElementById('screen-result').classList.remove('hidden');
     const s1 = playersData.p1_score, s2 = playersData.p2_score;
-    document.getElementById('winner-title').innerText = s1 > s2 ? "🏆 P1 THẮNG!" : (s2 > s1 ? "🏆 P2 THẮNG!" : "🤝 HÒA NHAU!");
+    document.getElementById('winner-title').innerText = s1 > s2 ? "🏆 P1 THẮNG!" : (s2 > s1 ? "🏆 P2 THẮNG!" : "🤝 HÒA!");
     document.getElementById('final-summary').innerText = `Tỉ số: ${s1} - ${s2}`;
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+    confetti({ particleCount: 150, spread: 70 });
 }
 
 function copyLink() {
-    navigator.clipboard.writeText(document.getElementById('invite-link').innerText);
+    const copyText = document.getElementById("invite-link");
+    copyText.select();
+    navigator.clipboard.writeText(copyText.value);
     alert("Đã copy link!");
 }
 
