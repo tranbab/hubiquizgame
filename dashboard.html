@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="reset.css">
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.10.0/css/all.css">
+    <title>Hubi Quiz - Leaderboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .user-info {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .stat-box {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 10px;
+            border-radius: 12px;
+            color: #fff;
+        }
+        .stat-value { display: block; font-size: 20px; font-weight: bold; color: #2ecc71; }
+        .stat-label { font-size: 11px; text-transform: uppercase; opacity: 0.7; }
+
+        /* Bảng xếp hạng */
+        .leaderboard-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .leaderboard-title {
+            color: #f1c40f;
+            font-size: 18px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .leaderboard-list { list-style: none; padding: 0; margin: 0; }
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 14px;
+        }
+        .leaderboard-item:last-child { border-bottom: none; }
+        .rank { font-weight: bold; color: #f1c40f; margin-right: 10px; }
+
+        .game-title {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 20px;
+            font-weight: 900;
+        }
+
+        .btn-logout {
+            background: transparent !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            margin-top: 10px !important;
+            padding: 8px !important;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div id="wrapper">
+        <div id="form-login" style="max-width: 450px;">
+            <div class="user-info">
+                <i class="fas fa-user-circle"></i>
+                <span id="user-display">Đang tải...</span>
+            </div>
+
+            <h1 class="game-title">HUBI QUIZ BATTLE</h1>
+
+            <div class="stats-container">
+                <div class="stat-box">
+                    <span class="stat-value" id="win-count">0</span>
+                    <span class="stat-label">Chiến thắng</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-value" id="match-count" style="color: #3498db;">0</span>
+                    <span class="stat-label">Tổng trận</span>
+                </div>
+            </div>
+
+            <div class="leaderboard-card">
+                <div class="leaderboard-title"><i class="fas fa-trophy"></i> Top Cao Thủ</div>
+                <div id="leaderboard-content" class="leaderboard-list">
+                    <div style="color: rgba(255,255,255,0.5); font-size: 12px;">Đang cập nhật xếp hạng...</div>
+                </div>
+            </div>
+            
+            <button type="button" id="btn-start-game" class="form-submit">VÀO TRẬN</button>
+            <button type="button" id="btn-logout" class="form-submit btn-logout">Đăng xuất</button>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.js"></script>
+    <script>
+        const SUPABASE_URL = 'https://tyhqwaunmanubqqyifwj.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5aHF3YXVubWFudWJxcXlpZndqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4ODg4ODAsImV4cCI6MjA4ODQ2NDg4MH0.7BSrbAV2WSY5gqZxQwG4-QybRaF-DNbDceNmFiVF1cQ';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        $(document).ready(async function() {
+            const userData = JSON.parse(localStorage.getItem('hubi_user'));
+            if (!userData) { window.location.href = 'index.html'; return; }
+
+            $('#user-display').text(userData.email.split('@')[0]);
+
+            // 1. Lấy dữ liệu cá nhân & BXH
+            const { data: allRooms } = await supabaseClient.from('rooms').select('*');
+
+            if (allRooms) {
+                const userStats = {};
+                let myWins = 0, myMatches = 0;
+
+                allRooms.forEach(room => {
+                    if (room.p1_score === undefined || room.p2_score === undefined) return;
+                    
+                    const players = [
+                        {id: room.p1_id, name: room.p1_name, score: room.p1_score, opponentScore: room.p2_score},
+                        {id: room.p2_id, name: room.p2_name, score: room.p2_score, opponentScore: room.p1_score}
+                    ];
+
+                    players.forEach(p => {
+                        if (!p.id) return;
+                        if (!userStats[p.id]) userStats[p.id] = { name: p.name || 'Người chơi', wins: 0 };
+                        if (p.score > p.opponentScore) userStats[p.id].wins++;
+                        
+                        if (p.id === userData.id) {
+                            myMatches++;
+                            if (p.score > p.opponentScore) myWins++;
+                        }
+                    });
+                });
+
+                // Cập nhật giao diện cá nhân
+                $('#win-count').text(myWins);
+                $('#match-count').text(myMatches);
+
+                // Cập nhật Leaderboard (Top 5)
+                const sortedUsers = Object.values(userStats).sort((a, b) => b.wins - a.wins).slice(0, 5);
+                const html = sortedUsers.map((u, i) => `
+                    <div class="leaderboard-item">
+                        <span><span class="rank">#${i+1}</span> ${u.name}</span>
+                        <span style="font-weight:bold">${u.wins} 🏆</span>
+                    </div>
+                `).join('');
+                $('#leaderboard-content').html(html || 'Chưa có dữ liệu');
+            }
+
+            $('#btn-start-game').click(() => window.location.href = 'start.html');
+            $('#btn-logout').click(() => { localStorage.removeItem('hubi_user'); window.location.href = 'index.html'; });
+        });
+    </script>
+</body>
+</html>
